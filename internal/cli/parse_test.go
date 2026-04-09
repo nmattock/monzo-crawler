@@ -20,6 +20,9 @@ func TestParseArgs_OnlySeedURL_CrawlsFully(t *testing.T) {
 	if cfg.Debug {
 		t.Fatalf("expected debug to default to false")
 	}
+	if cfg.Summary {
+		t.Fatalf("expected summary to default to false")
+	}
 }
 
 func TestParseArgs_WithDepth(t *testing.T) {
@@ -77,6 +80,29 @@ func TestParseArgs_WithDepthAndDebugFlag(t *testing.T) {
 	}
 	if !cfg.Debug {
 		t.Fatalf("expected debug to be true")
+	}
+	if cfg.MaxDepth == nil || *cfg.MaxDepth != 2 {
+		t.Fatalf("expected max depth of 2")
+	}
+}
+
+func TestParseArgs_WithSummaryFlag(t *testing.T) {
+	cfg, err := ParseArgs([]string{"https://example.com", "--summary"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !cfg.Summary {
+		t.Fatalf("expected summary to be true")
+	}
+}
+
+func TestParseArgs_WithAllFlags(t *testing.T) {
+	cfg, err := ParseArgs([]string{"https://example.com", "2", "--debug", "--summary"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if !cfg.Debug || !cfg.Summary {
+		t.Fatalf("expected both debug and summary to be true")
 	}
 	if cfg.MaxDepth == nil || *cfg.MaxDepth != 2 {
 		t.Fatalf("expected max depth of 2")

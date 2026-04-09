@@ -10,17 +10,22 @@ import (
 
 var (
 	ErrMissingSeedURL   = errors.New("seed URL is required")
-	ErrTooManyArguments = errors.New("too many arguments: expected <seed-url> [max-depth] [--debug]")
+	ErrTooManyArguments = errors.New("too many arguments: expected <seed-url> [max-depth] [--debug] [--summary]")
 )
 
 // ParseArgs parses and validates command line arguments.
-// Expected args: <seed-url> [max-depth] [--debug]
+// Expected args: <seed-url> [max-depth] [--debug] [--summary]
 func ParseArgs(args []string) (Config, error) {
 	positionals := make([]string, 0, 2)
 	debug := false
+	summary := false
 	for _, arg := range args {
 		if arg == "--debug" {
 			debug = true
+			continue
+		}
+		if arg == "--summary" {
+			summary = true
 			continue
 		}
 		positionals = append(positionals, arg)
@@ -41,6 +46,7 @@ func ParseArgs(args []string) (Config, error) {
 	cfg := Config{
 		SeedURL: seedURL,
 		Debug:   debug,
+		Summary: summary,
 	}
 
 	if len(positionals) == 2 {

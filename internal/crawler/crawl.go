@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"time"
 )
 
 // ChildSource provides candidate child links for a URL.
@@ -22,9 +23,10 @@ type Crawler struct {
 
 // PageResult stores crawl output for one visited page.
 type PageResult struct {
-	Links []string
-	Err   error
-	Depth int
+	Links          []string
+	Err            error
+	Depth          int
+	ScrapeDuration time.Duration
 }
 
 // RunResult stores the aggregated crawl state.
@@ -94,7 +96,9 @@ func (c *Crawler) Run(seedURL string, maxDepth *int) (RunResult, error) {
 			Depth: current.Depth,
 		}
 
+		startedAt := time.Now()
 		candidates, childrenErr := c.source.Children(current.URL)
+		page.ScrapeDuration = time.Since(startedAt)
 		if childrenErr != nil {
 			c.debugf("children fetch error url=%s err=%v", current.URL, childrenErr)
 			page.Err = childrenErr

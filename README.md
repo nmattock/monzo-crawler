@@ -25,13 +25,14 @@ go test ./...
 ## Run the CLI
 
 ```bash
-go run . <seed-url> [max-depth] [--debug]
+go run . <seed-url> [max-depth] [--debug] [--summary]
 ```
 
 - `seed-url` (required): The initial URL to start crawling from.
 - `max-depth` (optional): Positive integer crawl depth.
   - If omitted, crawling is treated as unlimited depth.
 - `--debug` (optional): Enables verbose crawl diagnostics to help investigate slow runs.
+- `--summary` (optional): Prints aggregate crawl metrics by depth instead of listing every page/link.
 
 ### Examples
 
@@ -51,6 +52,12 @@ Run with debug output enabled:
 
 ```bash
 go run . https://example.com --debug
+```
+
+Run in summary mode:
+
+```bash
+go run . https://example.com --summary
 ```
 
 Output format:

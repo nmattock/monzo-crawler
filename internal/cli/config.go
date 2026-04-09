@@ -5,6 +5,7 @@ type Config struct {
 	SeedURL  string
 	MaxDepth *int
 	Debug    bool
+	Summary  bool
 }
 
 // CrawlFully returns true when no max depth is set.
