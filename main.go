@@ -14,25 +14,33 @@ func main() {
 	cfg, err := cli.ParseArgs(os.Args[1:])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		fmt.Fprintln(os.Stderr, "usage: monzo-scraper <seed-url> [max-depth] [--debug] [--summary]")
+		fmt.Fprintln(os.Stderr, "usage: monzo-scraper <seed-url> [max-depth] [--debug] [--summary] [--runner=<name>]")
 		os.Exit(1)
 	}
 
-	c, err := crawler.NewCrawler(crawler.NewURLRules(), crawler.NewHTTPChildSource(nil))
+	runner, err := crawler.NewRunner(
+		cfg.Runner,
+		crawler.NewURLRules(),
+		crawler.NewHTTPChildSource(nil),
+	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: initialize crawler: %v\n", err)
 		os.Exit(1)
 	}
-	c.SetDebug(cfg.Debug)
+	if debugRunner, ok := runner.(crawler.DebuggableRunner); ok {
+		debugRunner.SetDebug(cfg.Debug)
+	}
 
-	runResult, err := c.Run(cfg.SeedURL, cfg.MaxDepth)
+	runStart := time.Now()
+	runResult, err := runner.Run(cfg.SeedURL, cfg.MaxDepth)
+	totalRunTime := time.Since(runStart)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 
 	if cfg.Summary {
-		printSummary(runResult)
+		printSummary(runResult, totalRunTime)
 		return
 	}
 
@@ -51,7 +59,7 @@ type depthSummary struct {
 	totalScrape  time.Duration
 }
 
-func printSummary(runResult crawler.RunResult) {
+func printSummary(runResult crawler.RunResult, totalRunTime time.Duration) {
 	byDepth := make(map[int]*depthSummary)
 	overall := depthSummary{}
 	for _, page := range runResult.Results {
@@ -101,10 +109,10 @@ func printSummary(runResult crawler.RunResult) {
 	}
 	fmt.Println("Overall totals:")
 	fmt.Printf(
-		"  found=%d scraped=%d total_scrape_time=%s avg_scrape_time=%s\n",
+		"  found=%d scraped=%d total_run_time=%s avg_scrape_time=%s\n",
 		overall.found,
 		overall.scraped,
-		overall.totalScrape.Truncate(time.Microsecond),
+		totalRunTime.Truncate(time.Microsecond),
 		overallAvg.Truncate(time.Microsecond),
 	)
 }

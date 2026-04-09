@@ -6,6 +6,7 @@ type Config struct {
 	MaxDepth *int
 	Debug    bool
 	Summary  bool
+	Runner   string
 }
 
 // CrawlFully returns true when no max depth is set.

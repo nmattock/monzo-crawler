@@ -25,7 +25,7 @@ go test ./...
 ## Run the CLI
 
 ```bash
-go run . <seed-url> [max-depth] [--debug] [--summary]
+go run . <seed-url> [max-depth] [--debug] [--summary] [--runner=<name>]
 ```
 
 - `seed-url` (required): The initial URL to start crawling from.
@@ -33,6 +33,57 @@ go run . <seed-url> [max-depth] [--debug] [--summary]
   - If omitted, crawling is treated as unlimited depth.
 - `--debug` (optional): Enables verbose crawl diagnostics to help investigate slow runs.
 - `--summary` (optional): Prints aggregate crawl metrics by depth instead of listing every page/link.
+- `--runner` (optional): Selects crawl runner implementation:
+  - `multi` (default): concurrent traversal with up to 100 simultaneous page scrapes
+  - `single`: single-threaded traversal
+
+### Defaults and simple usage
+
+If you pass **only a seed URL**, the tool:
+
+- Crawls **only that host** (same scheme + host as the seed; other domains and subdomains are ignored).
+- Uses **unlimited depth** (keeps following in-domain links until none remain).
+- Uses the **`multi` runner** (up to 100 pages fetched in parallel).
+- Prints **one page per block** to stdout: the visited URL, then the in-domain links found on that page.
+- Does **not** enable `--debug` or `--summary`.
+
+Minimal run:
+
+```bash
+go run . https://crawlme.monzo.com/
+```
+
+Add a depth limit as the second argument, and optional flags in any order after that, for example:
+
+```bash
+go run . https://crawlme.monzo.com/ 2 --summary
+```
+
+### Expected output
+
+**Normal mode (default)** — stdout only, unless you use `--debug`:
+
+1. Each **visited page** appears on its **own line** (normalized URL).
+2. Underneath, each **in-domain link** discovered on that page is printed as an indented bullet (`  - ...`).
+3. Order follows the crawl (breadth-first for both runners; `multi` may complete pages in a different completion order, but each page still lists its links consistently).
+
+Example shape:
+
+```text
+https://crawlme.monzo.com/
+  - https://crawlme.monzo.com/about
+  - https://crawlme.monzo.com/blog
+https://crawlme.monzo.com/about
+  - https://crawlme.monzo.com/
+```
+
+**Summary mode** (`--summary`) — replaces the per-page listing with aggregate stats:
+
+- Total pages found.
+- Per **depth**: `found`, `scraped` (pages where the fetch succeeded), and **average scrape time** per page at that depth.
+- **Overall totals**: `found`, `scraped`, **total_run_time** (wall-clock time for the whole crawl), and **avg_scrape_time** (mean of per-page fetch durations).
+
+**Debug** (`--debug`) — diagnostic lines prefixed with `[debug]` are written to **stderr**, so they do not mix with the normal stdout listing.
 
 ### Examples
 
@@ -60,10 +111,11 @@ Run in summary mode:
 go run . https://example.com --summary
 ```
 
-Output format:
+Run with the single-threaded runner instead of the default concurrent one:
 
-- each visited page URL is printed on its own line
-- discovered in-domain links for that page are printed underneath as indented bullet lines
+```bash
+go run . https://example.com --runner=single
+```
 
 ## Link Extraction Strategy (Initial)
 

@@ -23,6 +23,9 @@ func TestParseArgs_OnlySeedURL_CrawlsFully(t *testing.T) {
 	if cfg.Summary {
 		t.Fatalf("expected summary to default to false")
 	}
+	if cfg.Runner != "multi" {
+		t.Fatalf("expected default runner to be multi, got %q", cfg.Runner)
+	}
 }
 
 func TestParseArgs_WithDepth(t *testing.T) {
@@ -106,5 +109,32 @@ func TestParseArgs_WithAllFlags(t *testing.T) {
 	}
 	if cfg.MaxDepth == nil || *cfg.MaxDepth != 2 {
 		t.Fatalf("expected max depth of 2")
+	}
+}
+
+func TestParseArgs_WithRunnerEqualsSyntax(t *testing.T) {
+	cfg, err := ParseArgs([]string{"https://example.com", "--runner=multi"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if cfg.Runner != "multi" {
+		t.Fatalf("expected runner multi, got %q", cfg.Runner)
+	}
+}
+
+func TestParseArgs_WithRunnerSeparateArg(t *testing.T) {
+	cfg, err := ParseArgs([]string{"https://example.com", "--runner", "single"})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if cfg.Runner != "single" {
+		t.Fatalf("expected runner single, got %q", cfg.Runner)
+	}
+}
+
+func TestParseArgs_MissingRunnerValue(t *testing.T) {
+	_, err := ParseArgs([]string{"https://example.com", "--runner"})
+	if !errors.Is(err, ErrMissingRunner) {
+		t.Fatalf("expected ErrMissingRunner, got %v", err)
 	}
 }

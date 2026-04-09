@@ -2,6 +2,7 @@ package crawler
 
 import (
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"time"
@@ -13,12 +14,24 @@ type ChildSource interface {
 	Children(pageURL string) ([]string, error)
 }
 
+// Runner defines the crawl execution contract.
+// Different implementations can provide different traversal strategies.
+type Runner interface {
+	Run(seedURL string, maxDepth *int) (RunResult, error)
+}
+
+// DebuggableRunner exposes optional debug controls for runner implementations.
+type DebuggableRunner interface {
+	Runner
+	SetDebug(enabled bool)
+}
+
 // Crawler traverses links under the configured rules.
 type Crawler struct {
 	rules   Rules
 	source  ChildSource
 	debug   bool
-	debugTo *os.File
+	debugTo io.Writer
 }
 
 // PageResult stores crawl output for one visited page.
@@ -59,6 +72,16 @@ func NewCrawler(rules Rules, source ChildSource) (*Crawler, error) {
 // SetDebug toggles verbose crawler diagnostics.
 func (c *Crawler) SetDebug(enabled bool) {
 	c.debug = enabled
+}
+
+// SetDebugOutput sets where debug logs are written.
+// By default logs go to stderr.
+func (c *Crawler) SetDebugOutput(w io.Writer) {
+	if w == nil {
+		c.debugTo = os.Stderr
+		return
+	}
+	c.debugTo = w
 }
 
 // Run performs a breadth-first crawl from seedURL.
