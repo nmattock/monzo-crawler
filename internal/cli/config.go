@@ -4,6 +4,7 @@ package cli
 type Config struct {
 	SeedURL  string
 	MaxDepth *int
+	Debug    bool
 }
 
 // CrawlFully returns true when no max depth is set.

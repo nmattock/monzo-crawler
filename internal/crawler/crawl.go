@@ -3,6 +3,7 @@ package crawler
 import (
 	"fmt"
 	"net/url"
+	"os"
 )
 
 // ChildSource provides candidate child links for a URL.
@@ -13,8 +14,10 @@ type ChildSource interface {
 
 // Crawler traverses links under the configured rules.
 type Crawler struct {
-	rules  Rules
-	source ChildSource
+	rules   Rules
+	source  ChildSource
+	debug   bool
+	debugTo *os.File
 }
 
 // PageResult stores crawl output for one visited page.
@@ -26,8 +29,9 @@ type PageResult struct {
 
 // RunResult stores the aggregated crawl state.
 type RunResult struct {
-	Visited map[string]bool
-	Results map[string]PageResult
+	Visited   map[string]bool
+	Results   map[string]PageResult
+	VisitOrder []string
 }
 
 type queueItem struct {
@@ -44,9 +48,15 @@ func NewCrawler(rules Rules, source ChildSource) (*Crawler, error) {
 		return nil, fmt.Errorf("child source cannot be nil")
 	}
 	return &Crawler{
-		rules:  rules,
-		source: source,
+		rules:   rules,
+		source:  source,
+		debugTo: os.Stderr,
 	}, nil
+}
+
+// SetDebug toggles verbose crawler diagnostics.
+func (c *Crawler) SetDebug(enabled bool) {
+	c.debug = enabled
 }
 
 // Run performs a breadth-first crawl from seedURL.
@@ -56,6 +66,7 @@ func (c *Crawler) Run(seedURL string, maxDepth *int) (RunResult, error) {
 	if err != nil {
 		return RunResult{}, fmt.Errorf("%w: %v", ErrInvalidSeedURL, err)
 	}
+	c.debugf("starting crawl seed=%s maxDepth=%v", normalizedSeed, depthForDebug(maxDepth))
 
 	seedParsed, err := url.Parse(normalizedSeed)
 	if err != nil || seedParsed.Scheme == "" || seedParsed.Host == "" {
@@ -64,16 +75,20 @@ func (c *Crawler) Run(seedURL string, maxDepth *int) (RunResult, error) {
 
 	visited := map[string]bool{}
 	results := map[string]PageResult{}
+	visitOrder := make([]string, 0)
 	queue := []queueItem{{URL: normalizedSeed, Depth: 0}}
 
 	for len(queue) > 0 {
 		current := queue[0]
 		queue = queue[1:]
+		c.debugf("dequeue url=%s depth=%d queueRemaining=%d", current.URL, current.Depth, len(queue))
 
 		if visited[current.URL] {
+			c.debugf("skip visited url=%s", current.URL)
 			continue
 		}
 		visited[current.URL] = true
+		visitOrder = append(visitOrder, current.URL)
 
 		page := PageResult{
 			Depth: current.Depth,
@@ -81,32 +96,39 @@ func (c *Crawler) Run(seedURL string, maxDepth *int) (RunResult, error) {
 
 		candidates, childrenErr := c.source.Children(current.URL)
 		if childrenErr != nil {
+			c.debugf("children fetch error url=%s err=%v", current.URL, childrenErr)
 			page.Err = childrenErr
 			results[current.URL] = page
 			continue
 		}
+		c.debugf("found candidates url=%s count=%d", current.URL, len(candidates))
 
 		for _, candidate := range candidates {
 			isDescendant, descendantErr := c.rules.IsDescendant(seedParsed, candidate)
 			if descendantErr != nil {
 				// Invalid candidates are skipped so crawling can continue.
+				c.debugf("skip invalid candidate parent=%s candidate=%s err=%v", current.URL, candidate, descendantErr)
 				continue
 			}
 			if !isDescendant {
+				c.debugf("skip external candidate parent=%s candidate=%s", current.URL, candidate)
 				continue
 			}
 
 			normalizedChild, normalizeErr := c.rules.Normalize(candidate)
 			if normalizeErr != nil {
+				c.debugf("skip candidate normalize failure parent=%s candidate=%s err=%v", current.URL, candidate, normalizeErr)
 				continue
 			}
 
 			page.Links = append(page.Links, normalizedChild)
 
 			if visited[normalizedChild] {
+				c.debugf("skip enqueue already-visited child=%s", normalizedChild)
 				continue
 			}
 			if maxDepth != nil && current.Depth >= *maxDepth {
+				c.debugf("skip enqueue due to depth-limit parentDepth=%d maxDepth=%d child=%s", current.Depth, *maxDepth, normalizedChild)
 				continue
 			}
 
@@ -114,13 +136,29 @@ func (c *Crawler) Run(seedURL string, maxDepth *int) (RunResult, error) {
 				URL:   normalizedChild,
 				Depth: current.Depth + 1,
 			})
+			c.debugf("enqueue child=%s depth=%d queueSize=%d", normalizedChild, current.Depth+1, len(queue))
 		}
 
 		results[current.URL] = page
 	}
 
 	return RunResult{
-		Visited: visited,
-		Results: results,
+		Visited:    visited,
+		Results:    results,
+		VisitOrder: visitOrder,
 	}, nil
+}
+
+func (c *Crawler) debugf(format string, args ...any) {
+	if !c.debug {
+		return
+	}
+	_, _ = fmt.Fprintf(c.debugTo, "[debug] "+format+"\n", args...)
+}
+
+func depthForDebug(maxDepth *int) string {
+	if maxDepth == nil {
+		return "unlimited"
+	}
+	return fmt.Sprintf("%d", *maxDepth)
 }
