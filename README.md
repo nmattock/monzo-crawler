@@ -25,7 +25,7 @@ go test ./...
 ## Run the CLI
 
 ```bash
-go run . <seed-url> [max-depth] [--debug] [--summary] [--runner=<name>]
+go run . <seed-url> [max-depth] [--debug] [--summary] [--write-to-file] [--runner=<name>]
 ```
 
 - `seed-url` (required): The initial URL to start crawling from.
@@ -33,6 +33,7 @@ go run . <seed-url> [max-depth] [--debug] [--summary] [--runner=<name>]
   - If omitted, crawling is treated as unlimited depth.
 - `--debug` (optional): Enables verbose crawl diagnostics to help investigate slow runs.
 - `--summary` (optional): Prints aggregate crawl metrics by depth instead of listing every page/link.
+- `--write-to-file` (optional): Saves the crawl output to a `.txt` file in the current directory. The filename is derived from the seed URL and the crawl start time, e.g. `crawlme.monzo.com--2026-04-13--15-04-05.txt`.
 - `--runner` (optional): Selects crawl runner implementation:
   - `multi` (default): concurrent traversal with up to 100 simultaneous page scrapes
   - `single`: single-threaded traversal
@@ -45,7 +46,7 @@ If you pass **only a seed URL**, the tool:
 - Uses **unlimited depth** (keeps following in-domain links until none remain).
 - Uses the **`multi` runner** (up to 100 pages fetched in parallel).
 - Prints **one page per block** to stdout: the visited URL, then the in-domain links found on that page.
-- Does **not** enable `--debug` or `--summary`.
+- Does **not** enable `--debug`, `--summary`, or `--write-to-file`.
 
 Minimal run:
 
@@ -115,6 +116,12 @@ Run with the single-threaded runner instead of the default concurrent one:
 
 ```bash
 go run . https://example.com --runner=single
+```
+
+Save output to a file:
+
+```bash
+go run . https://example.com --write-to-file
 ```
 
 ## Link Extraction Strategy (Initial)

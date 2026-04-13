@@ -10,7 +10,7 @@ import (
 
 var (
 	ErrMissingSeedURL   = errors.New("seed URL is required")
-	ErrTooManyArguments = errors.New("too many arguments: expected <seed-url> [max-depth] [--debug] [--summary]")
+	ErrTooManyArguments = errors.New("too many arguments: expected <seed-url> [max-depth] [--debug] [--summary] [--write-to-file]")
 	ErrMissingRunner    = errors.New("runner value is required when using --runner")
 )
 
@@ -20,6 +20,7 @@ func ParseArgs(args []string) (Config, error) {
 	positionals := make([]string, 0, 2)
 	debug := false
 	summary := false
+	writeToFile := false
 	runner := "multi"
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
@@ -29,6 +30,10 @@ func ParseArgs(args []string) (Config, error) {
 		}
 		if arg == "--summary" {
 			summary = true
+			continue
+		}
+		if arg == "--write-to-file" {
+			writeToFile = true
 			continue
 		}
 		if arg == "--runner" {
@@ -65,10 +70,11 @@ func ParseArgs(args []string) (Config, error) {
 	}
 
 	cfg := Config{
-		SeedURL: seedURL,
-		Debug:   debug,
-		Summary: summary,
-		Runner:  runner,
+		SeedURL:     seedURL,
+		Debug:       debug,
+		Summary:     summary,
+		Runner:      runner,
+		WriteToFile: writeToFile,
 	}
 
 	if len(positionals) == 2 {

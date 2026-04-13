@@ -6,7 +6,7 @@ import (
 )
 
 // DefaultConcurrentWorkers is the default max simultaneous page scrapes for the multi runner.
-const DefaultConcurrentWorkers = 100
+const DefaultConcurrentWorkers = 1000
 
 type scrapeJob struct {
 	URL   string
