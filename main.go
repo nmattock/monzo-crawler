@@ -33,6 +33,13 @@ func main() {
 	if debugRunner, ok := runner.(crawler.DebuggableRunner); ok {
 		debugRunner.SetDebug(cfg.Debug)
 	}
+	if pr, ok := runner.(crawler.ProgressableRunner); ok {
+		pr.SetProgress(func(visited int) {
+			if visited%500 == 0 {
+				fmt.Fprintf(os.Stderr, "progress: %d pages crawled at %s\n", visited, time.Now().Format("15:04:05"))
+			}
+		})
+	}
 
 	crawlStart := time.Now()
 	runResult, err := runner.Run(cfg.SeedURL, cfg.MaxDepth)

@@ -84,6 +84,7 @@ type ConcurrentRunner struct {
 	source      ChildSource
 	concurrency int
 	debugLogger
+	progressReporter
 }
 
 // NewConcurrentRunner creates a concurrent runner.
@@ -170,6 +171,7 @@ func (r *ConcurrentRunner) Run(seedURL string, maxDepth *int) (RunResult, error)
 		}
 		visited[res.URL] = true
 		visitOrder = append(visitOrder, res.URL)
+		r.reportProgress(len(visitOrder))
 
 		page := PageResult{Depth: res.Depth, ScrapeDuration: res.ScrapeDuration}
 

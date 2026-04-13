@@ -7,6 +7,7 @@ type SingleRunner struct {
 	rules  Rules
 	source ChildSource
 	debugLogger
+	progressReporter
 }
 
 type queueItem struct {
@@ -54,6 +55,7 @@ func (r *SingleRunner) Run(seedURL string, maxDepth *int) (RunResult, error) {
 		}
 		visited[current.URL] = true
 		visitOrder = append(visitOrder, current.URL)
+		r.reportProgress(len(visitOrder))
 
 		startedAt := time.Now()
 		candidates, childrenErr := r.source.Children(current.URL)

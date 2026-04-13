@@ -133,3 +133,37 @@ Limitations of this approach:
 - It only sees links present in the raw HTML response.
 - It does not execute JavaScript, so client-rendered links are not discovered.
 - It does not perform browser interactions (clicks, form submission, infinite scroll, auth flows).
+
+## Architecture
+
+```mermaid
+graph TD
+    args["os.Args"] --> PA["cli.ParseArgs"] --> Cfg["cli.Config"] --> NR["crawler.NewRunner"]
+    NR -->|"multi (default)"| CR["ConcurrentRunner"]
+    NR -->|single| SR["SingleRunner"]
+
+    subgraph ci["ConcurrentRunner — extra internals"]
+        JQ["jobQueue\n(mutex + sync.Cond)"] --> D["dispatcher\ngoroutine"] --> W["100 workers"] --> RC["results channel"]
+    end
+    CR -.- ci
+
+    CR --> Both(("both\nrunners"))
+    SR --> Both
+
+    subgraph ing["Ingredients (no ordering between these)"]
+        UR["URLRules\n· Normalize · IsDescendant"]
+        HS["HTTPChildSource\nnet/http + goquery"]
+        DL["debugLogger"]
+        PR["progressReporter\nevery 500 pages"]
+    end
+
+    Both --> ing
+    DL & PR --> SE["stderr"]
+
+    Both --> PS["① parseSeed\n(validate + normalise seed)"]
+    PS --> FC["② filterCandidates\n(domain check · dedup · depth guard)"]
+    FC --> RR["RunResult\n(Visited, Results, VisitOrder)"]
+
+    RR --> SO["stdout\n(listing or --summary)"]
+    RR -->|"--write-to-file"| FI[".txt file\nsummary + full listing"]
+```

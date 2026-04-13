@@ -23,6 +23,13 @@ type DebuggableRunner interface {
 	SetDebug(enabled bool)
 }
 
+// ProgressableRunner exposes an optional progress hook for runner implementations.
+// fn is called with the running count of pages visited each time a new page is recorded.
+type ProgressableRunner interface {
+	Runner
+	SetProgress(fn func(visited int))
+}
+
 // PageResult stores crawl output for one visited page.
 type PageResult struct {
 	Links          []string
