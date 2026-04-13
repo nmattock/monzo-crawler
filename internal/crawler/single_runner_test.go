@@ -24,13 +24,13 @@ func intPtr(v int) *int {
 	return &v
 }
 
-func TestRun_StopsOnInvalidSeed(t *testing.T) {
-	c, err := NewCrawler(URLRules{}, fakeSource{})
+func TestSingleRunner_StopsOnInvalidSeed(t *testing.T) {
+	r, err := NewSingleRunner(URLRules{}, fakeSource{})
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	_, err = c.Run("not-a-url", nil)
+	_, err = r.Run("not-a-url", nil)
 	if err == nil {
 		t.Fatalf("expected error for invalid seed URL")
 	}
@@ -39,8 +39,8 @@ func TestRun_StopsOnInvalidSeed(t *testing.T) {
 	}
 }
 
-func TestRun_SkipsInvalidCandidateAndExternalLinks(t *testing.T) {
-	c, err := NewCrawler(URLRules{}, fakeSource{
+func TestSingleRunner_SkipsInvalidCandidateAndExternalLinks(t *testing.T) {
+	r, err := NewSingleRunner(URLRules{}, fakeSource{
 		children: map[string][]string{
 			"https://crawlme.monzo.com": {
 				"https://crawlme.monzo.com/about",
@@ -53,7 +53,7 @@ func TestRun_SkipsInvalidCandidateAndExternalLinks(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	out, err := c.Run("https://crawlme.monzo.com", intPtr(1))
+	out, err := r.Run("https://crawlme.monzo.com", intPtr(1))
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -67,8 +67,8 @@ func TestRun_SkipsInvalidCandidateAndExternalLinks(t *testing.T) {
 	}
 }
 
-func TestRun_UsesVisitedToPreventCycles(t *testing.T) {
-	c, err := NewCrawler(URLRules{}, fakeSource{
+func TestSingleRunner_UsesVisitedToPreventCycles(t *testing.T) {
+	r, err := NewSingleRunner(URLRules{}, fakeSource{
 		children: map[string][]string{
 			"https://crawlme.monzo.com": {
 				"https://crawlme.monzo.com/a",
@@ -82,7 +82,7 @@ func TestRun_UsesVisitedToPreventCycles(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	out, err := c.Run("https://crawlme.monzo.com", nil)
+	out, err := r.Run("https://crawlme.monzo.com", nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -92,8 +92,8 @@ func TestRun_UsesVisitedToPreventCycles(t *testing.T) {
 	}
 }
 
-func TestRun_RespectsMaxDepth(t *testing.T) {
-	c, err := NewCrawler(URLRules{}, fakeSource{
+func TestSingleRunner_RespectsMaxDepth(t *testing.T) {
+	r, err := NewSingleRunner(URLRules{}, fakeSource{
 		children: map[string][]string{
 			"https://crawlme.monzo.com": {
 				"https://crawlme.monzo.com/a",
@@ -107,7 +107,7 @@ func TestRun_RespectsMaxDepth(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	out, err := c.Run("https://crawlme.monzo.com", intPtr(1))
+	out, err := r.Run("https://crawlme.monzo.com", intPtr(1))
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -120,9 +120,9 @@ func TestRun_RespectsMaxDepth(t *testing.T) {
 	}
 }
 
-func TestRun_StoresPageErrorWhenChildFetchFails(t *testing.T) {
+func TestSingleRunner_StoresPageErrorWhenChildFetchFails(t *testing.T) {
 	fetchErr := errors.New("source failed")
-	c, err := NewCrawler(URLRules{}, fakeSource{
+	r, err := NewSingleRunner(URLRules{}, fakeSource{
 		errs: map[string]error{
 			"https://crawlme.monzo.com": fetchErr,
 		},
@@ -131,7 +131,7 @@ func TestRun_StoresPageErrorWhenChildFetchFails(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	out, err := c.Run("https://crawlme.monzo.com", nil)
+	out, err := r.Run("https://crawlme.monzo.com", nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -142,8 +142,8 @@ func TestRun_StoresPageErrorWhenChildFetchFails(t *testing.T) {
 	}
 }
 
-func TestRun_SeedWithNoChildren(t *testing.T) {
-	c, err := NewCrawler(URLRules{}, fakeSource{
+func TestSingleRunner_SeedWithNoChildren(t *testing.T) {
+	r, err := NewSingleRunner(URLRules{}, fakeSource{
 		children: map[string][]string{
 			"https://crawlme.monzo.com": {},
 		},
@@ -152,7 +152,7 @@ func TestRun_SeedWithNoChildren(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	out, err := c.Run("https://crawlme.monzo.com", nil)
+	out, err := r.Run("https://crawlme.monzo.com", nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

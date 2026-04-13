@@ -21,7 +21,7 @@ func NewRunnerWithConcurrency(name string, rules Rules, source ChildSource, conc
 		}
 		return NewConcurrentRunner(rules, source, concurrency)
 	case "single", "bfs":
-		return NewCrawler(rules, source)
+		return NewSingleRunner(rules, source)
 	default:
 		return nil, fmt.Errorf("unknown runner %q", name)
 	}

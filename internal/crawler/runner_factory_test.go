@@ -30,6 +30,16 @@ func TestNewRunner_Multi(t *testing.T) {
 	}
 }
 
+func TestNewRunner_Single(t *testing.T) {
+	r, err := NewRunner("single", URLRules{}, fakeSource{})
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+	if _, ok := r.(*SingleRunner); !ok {
+		t.Fatalf("expected single runner to be *SingleRunner")
+	}
+}
+
 func TestNewRunnerWithConcurrency_Multi(t *testing.T) {
 	const want = 4
 	r, err := NewRunnerWithConcurrency("multi", URLRules{}, fakeSource{}, want)

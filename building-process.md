@@ -30,9 +30,9 @@ Fo simplicity I implemented the crawler in a single-threaded manner as it is eas
 
 ## The internal data structures
 
-I use two maps and a queue to keep track of the visited pages and the pages to be visited. One maps allow us to quickly
-check if a page has already been visited, the other keeps track of the results and any errors and finally the queue
-allows us to easily implement the BFS traversal.
+I use two maps and a queue to keep track of the internal state. 
+One maps allow us to quickly check if a page has already been visited to prevent infinite loops, the other keeps track of the results and any errors. 
+Finally the queue allows us to easily implement the BFS traversal.
 Additionally visitOrder allows for deterministic output which is important for testing and debugging.
 
 ```

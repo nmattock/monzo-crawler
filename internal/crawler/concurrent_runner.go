@@ -1,16 +1,12 @@
 package crawler
 
 import (
-	"fmt"
-	"io"
-	"net/url"
-	"os"
 	"sync"
 	"time"
 )
 
 // DefaultConcurrentWorkers is the default max simultaneous page scrapes for the multi runner.
-const DefaultConcurrentWorkers = 10
+const DefaultConcurrentWorkers = 100
 
 type scrapeJob struct {
 	URL   string
@@ -25,58 +21,100 @@ type scrapeResult struct {
 	ScrapeDuration time.Duration
 }
 
+// jobQueue holds URLs waiting to be handed to workers. The result-processing loop
+// only calls push — it never blocks on the worker jobs channel. A dedicated dispatcher
+// goroutine pulls from this queue and sends on jobs, so backpressure from workers cannot
+// stall result handling and deadlock the pipeline (unlike a single goroutine that both
+// reads out and writes jobs).
+type jobQueue struct {
+	mu         sync.Mutex
+	cond       *sync.Cond
+	q          []scrapeJob
+	noMoreJobs bool
+}
+
+func newJobQueue() *jobQueue {
+	jq := &jobQueue{}
+	jq.cond = sync.NewCond(&jq.mu)
+	return jq
+}
+
+func (jq *jobQueue) push(job scrapeJob) {
+	jq.mu.Lock()
+	jq.q = append(jq.q, job)
+	jq.cond.Signal()
+	jq.mu.Unlock()
+}
+
+// markNoMoreJobs signals the dispatcher that no further push() calls will happen after
+// pending work reaches zero; the dispatcher drains the queue then closes jobs.
+func (jq *jobQueue) markNoMoreJobs() {
+	jq.mu.Lock()
+	jq.noMoreJobs = true
+	jq.cond.Broadcast()
+	jq.mu.Unlock()
+}
+
+// runDispatcher sends jobs to workers until the queue is drained and crawling is finished.
+// It is the only goroutine that sends on jobs and the only place that closes jobs.
+func (jq *jobQueue) runDispatcher(jobs chan<- scrapeJob) {
+	defer close(jobs)
+
+	for {
+		jq.mu.Lock()
+		for len(jq.q) == 0 && !jq.noMoreJobs {
+			jq.cond.Wait()
+		}
+		if len(jq.q) == 0 {
+			jq.mu.Unlock()
+			return
+		}
+		job := jq.q[0]
+		jq.q = jq.q[1:]
+		jq.mu.Unlock()
+
+		// Blocking here only stalls the dispatcher, not the result loop.
+		jobs <- job
+	}
+}
+
 // ConcurrentRunner executes page scrapes in parallel with bounded concurrency.
 type ConcurrentRunner struct {
 	rules       Rules
 	source      ChildSource
 	concurrency int
-	debug       bool
-	debugTo     io.Writer
+	debugLogger
 }
 
 // NewConcurrentRunner creates a concurrent runner.
 func NewConcurrentRunner(rules Rules, source ChildSource, concurrency int) (*ConcurrentRunner, error) {
 	if rules == nil {
-		return nil, fmt.Errorf("rules cannot be nil")
+		return nil, errNilRules
 	}
 	if source == nil {
-		return nil, fmt.Errorf("child source cannot be nil")
+		return nil, errNilSource
 	}
 	if concurrency <= 0 {
-		return nil, fmt.Errorf("concurrency must be greater than zero")
+		return nil, errBadConcurrency
 	}
 	return &ConcurrentRunner{
 		rules:       rules,
 		source:      source,
 		concurrency: concurrency,
-		debugTo:     os.Stderr,
+		debugLogger: newDebugLogger(),
 	}, nil
 }
 
-// SetDebug toggles verbose runner diagnostics.
-func (r *ConcurrentRunner) SetDebug(enabled bool) {
-	r.debug = enabled
-}
-
-// SetDebugOutput sets where debug logs are written.
-func (r *ConcurrentRunner) SetDebugOutput(w io.Writer) {
-	if w == nil {
-		r.debugTo = os.Stderr
-		return
-	}
-	r.debugTo = w
-}
-
-// Run crawls from seed URL using concurrent child scraping workers.
+// Run crawls from seed URL using a worker pool. Workers are the only goroutines that
+// send on out; we close out only after workerWG confirms all workers exited, so no
+// send races with close. A dispatcher goroutine feeds an unbuffered jobs channel so the
+// result loop never blocks on job dispatch — eliminating the coordinator deadlock.
 func (r *ConcurrentRunner) Run(seedURL string, maxDepth *int) (RunResult, error) {
-	normalizedSeed, err := r.rules.Normalize(seedURL)
+	seedParsed, normalizedSeed, err := parseSeed(r.rules, seedURL)
 	if err != nil {
-		return RunResult{}, fmt.Errorf("%w: %v", ErrInvalidSeedURL, err)
+		return RunResult{}, err
 	}
-	seedParsed, err := url.Parse(normalizedSeed)
-	if err != nil || seedParsed.Scheme == "" || seedParsed.Host == "" {
-		return RunResult{}, fmt.Errorf("%w: %q", ErrInvalidSeedURL, normalizedSeed)
-	}
+	r.debugf("starting concurrent crawl seed=%s maxDepth=%s workers=%d", normalizedSeed, depthForDebug(maxDepth), r.concurrency)
 
 	visited := map[string]bool{}
 	enqueued := map[string]bool{normalizedSeed: true}
@@ -84,112 +122,98 @@ func (r *ConcurrentRunner) Run(seedURL string, maxDepth *int) (RunResult, error)
 	visitOrder := make([]string, 0)
 	var mu sync.Mutex
 
-	out := make(chan scrapeResult, r.concurrency)
-	semaphore := make(chan struct{}, r.concurrency)
+	jq := newJobQueue()
+	jobs := make(chan scrapeJob)                  // unbuffered: synchronous handoff dispatcher → worker
+	out := make(chan scrapeResult, r.concurrency) // one slot per worker keeps workers flowing
 
-	launch := func(job scrapeJob) {
+	var workerWG sync.WaitGroup
+	for range r.concurrency {
+		workerWG.Add(1)
 		go func() {
-			semaphore <- struct{}{}
-			startedAt := time.Now()
-			candidates, childrenErr := r.source.Children(job.URL)
-			<-semaphore
-			out <- scrapeResult{
-				URL:            job.URL,
-				Depth:          job.Depth,
-				Candidates:     candidates,
-				Err:            childrenErr,
-				ScrapeDuration: time.Since(startedAt),
+			defer workerWG.Done()
+			for job := range jobs {
+				startedAt := time.Now()
+				candidates, childrenErr := r.source.Children(job.URL)
+				out <- scrapeResult{
+					URL:            job.URL,
+					Depth:          job.Depth,
+					Candidates:     candidates,
+					Err:            childrenErr,
+					ScrapeDuration: time.Since(startedAt),
+				}
 			}
 		}()
 	}
 
-	active := 1
-	launch(scrapeJob{URL: normalizedSeed, Depth: 0})
-	r.debugf("starting concurrent crawl seed=%s maxDepth=%v workers=%d", normalizedSeed, depthForDebug(maxDepth), r.concurrency)
+	// Close out only after every worker has exited so no worker sends on a closed channel.
+	go func() { workerWG.Wait(); close(out) }()
+
+	go jq.runDispatcher(jobs)
+
+	pending := 1
+	jq.push(scrapeJob{URL: normalizedSeed, Depth: 0})
 
 	for res := range out {
 		r.debugf("result url=%s depth=%d", res.URL, res.Depth)
 
-		childJobs := make([]scrapeJob, 0)
-		shouldClose := false
-
 		mu.Lock()
+
 		if visited[res.URL] {
 			r.debugf("skip duplicate result url=%s", res.URL)
-			active--
-			shouldClose = active == 0
+			pending--
+			done := pending == 0
 			mu.Unlock()
-			if shouldClose {
-				close(out)
+			if done {
+				jq.markNoMoreJobs()
 			}
 			continue
 		}
 		visited[res.URL] = true
 		visitOrder = append(visitOrder, res.URL)
 
-		page := PageResult{
-			Depth:          res.Depth,
-			ScrapeDuration: res.ScrapeDuration,
-		}
+		page := PageResult{Depth: res.Depth, ScrapeDuration: res.ScrapeDuration}
+
 		if res.Err != nil {
 			r.debugf("children fetch error url=%s err=%v", res.URL, res.Err)
 			page.Err = res.Err
 			results[res.URL] = page
-			active--
-			shouldClose = active == 0
+			pending--
+			done := pending == 0
 			mu.Unlock()
-			if shouldClose {
-				close(out)
+			if done {
+				jq.markNoMoreJobs()
 			}
 			continue
 		}
 		r.debugf("found candidates url=%s count=%d", res.URL, len(res.Candidates))
 
-		for _, candidate := range res.Candidates {
-			isDescendant, descendantErr := r.rules.IsDescendant(seedParsed, candidate)
-			if descendantErr != nil {
-				r.debugf("skip invalid candidate parent=%s candidate=%s err=%v", res.URL, candidate, descendantErr)
-				continue
-			}
-			if !isDescendant {
-				r.debugf("skip external candidate parent=%s candidate=%s", res.URL, candidate)
-				continue
-			}
-
-			normalizedChild, normalizeErr := r.rules.Normalize(candidate)
-			if normalizeErr != nil {
-				r.debugf("skip candidate normalize failure parent=%s candidate=%s err=%v", res.URL, candidate, normalizeErr)
-				continue
-			}
-			page.Links = append(page.Links, normalizedChild)
-
-			if visited[normalizedChild] || enqueued[normalizedChild] {
-				r.debugf("skip enqueue already-seen child=%s", normalizedChild)
-				continue
-			}
-			if maxDepth != nil && res.Depth >= *maxDepth {
-				r.debugf("skip enqueue due to depth-limit parentDepth=%d maxDepth=%d child=%s", res.Depth, *maxDepth, normalizedChild)
-				continue
-			}
-
-			enqueued[normalizedChild] = true
-			childJobs = append(childJobs, scrapeJob{
-				URL:   normalizedChild,
-				Depth: res.Depth + 1,
-			})
-			r.debugf("enqueue child=%s depth=%d", normalizedChild, res.Depth+1)
+		// filterCandidates is called inside the lock so that visited/enqueued reads
+		// are consistent; it does no I/O so lock contention is negligible.
+		links, toEnqueue := filterCandidates(
+			r.rules,
+			seedParsed,
+			res.URL,
+			res.Depth,
+			res.Candidates,
+			maxDepth,
+			func(child string) bool { return visited[child] || enqueued[child] },
+			r.debugf,
+		)
+		page.Links = links
+		for _, child := range toEnqueue {
+			enqueued[child] = true
 		}
 
 		results[res.URL] = page
-		active += len(childJobs) - 1
-		shouldClose = active == 0
+		pending += len(toEnqueue) - 1
+		done := pending == 0
 		mu.Unlock()
 
-		for _, childJob := range childJobs {
-			launch(childJob)
+		for _, child := range toEnqueue {
+			jq.push(scrapeJob{URL: child, Depth: res.Depth + 1})
 		}
-		if shouldClose {
-			close(out)
+		if done {
+			jq.markNoMoreJobs()
 		}
 	}
 
@@ -198,11 +222,4 @@ func (r *ConcurrentRunner) Run(seedURL string, maxDepth *int) (RunResult, error)
 		Results:    results,
 		VisitOrder: visitOrder,
 	}, nil
-}
-
-func (r *ConcurrentRunner) debugf(format string, args ...any) {
-	if !r.debug {
-		return
-	}
-	_, _ = fmt.Fprintf(r.debugTo, "[debug] "+format+"\n", args...)
 }
