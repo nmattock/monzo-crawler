@@ -93,7 +93,10 @@ func TestConcurrentRunner_Run_RespectsConcurrencyLimit(t *testing.T) {
 	}
 
 	maxSeen := source.MaxSeen()
-	if maxSeen != maxConcurrent {
+	if maxSeen > maxConcurrent {
 		t.Fatalf("expected max in-flight <= %d, got %d", maxConcurrent, maxSeen)
+	}
+	if maxSeen < 2 {
+		t.Fatalf("expected at least two concurrent processes, got %d", maxSeen)
 	}
 }

@@ -35,7 +35,7 @@ go run . <seed-url> [max-depth] [--debug] [--summary] [--write-to-file] [--runne
 - `--summary` (optional): Prints aggregate crawl metrics by depth instead of listing every page/link.
 - `--write-to-file` (optional): Saves the crawl output to a `.txt` file in the current directory. The filename is derived from the seed URL and the crawl start time, e.g. `crawlme.monzo.com--2026-04-13--15-04-05.txt`.
 - `--runner` (optional): Selects crawl runner implementation:
-  - `multi` (default): concurrent traversal with up to 100 simultaneous page scrapes
+  - `multi` (default): concurrent traversal with up to 1000 simultaneous page scrapes
   - `single`: single-threaded traversal
 
 ### Defaults and simple usage
@@ -44,7 +44,7 @@ If you pass **only a seed URL**, the tool:
 
 - Crawls **only that host** (same scheme + host as the seed; other domains and subdomains are ignored).
 - Uses **unlimited depth** (keeps following in-domain links until none remain).
-- Uses the **`multi` runner** (up to 100 pages fetched in parallel).
+- Uses the **`multi` runner** (up to 1000 pages fetched in parallel).
 - Prints **one page per block** to stdout: the visited URL, then the in-domain links found on that page.
 - Does **not** enable `--debug`, `--summary`, or `--write-to-file`.
 
@@ -143,7 +143,7 @@ graph TD
     NR -->|single| SR["SingleRunner"]
 
     subgraph ci["ConcurrentRunner — extra internals"]
-        JQ["jobQueue\n(mutex + sync.Cond)"] --> D["dispatcher\ngoroutine"] --> W["100 workers"] --> RC["results channel"]
+        JQ["jobQueue\n(mutex + sync.Cond)"] --> D["dispatcher\ngoroutine"] --> W["1000 workers"] --> RC["results channel"]
     end
     CR -.- ci
 

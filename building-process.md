@@ -66,7 +66,7 @@ I achieved the following results from the command
 
 `go run . https://crawlme.monzo.com/  --summary  --runner=multi`
 
-using a maximum of 100 concurrent go routines.
+using a maximum of 1000 concurrent go routines.
 
 ```
 Total pages found: 42011

@@ -42,7 +42,19 @@ func (r *SingleRunner) Run(seedURL string, maxDepth *int) (RunResult, error) {
 	visited := map[string]bool{}
 	results := map[string]PageResult{}
 	visitOrder := make([]string, 0)
+	// TODO: queue[1:] re-slices without freeing the backing array, so consumed
+	// items accumulate in memory for the lifetime of the crawl. For large sites
+	// this should be replaced with a proper FIFO (e.g. container/list or an
+	// index-based compacting slice).
 	queue := []queueItem{{URL: normalizedSeed, Depth: 0}}
+
+	fcfg := filterConfig{
+		rules:       r.rules,
+		seedParsed:  seedParsed,
+		maxDepth:    maxDepth,
+		alreadySeen: func(child string) bool { return visited[child] },
+		dbg:         r.debugf,
+	}
 
 	for len(queue) > 0 {
 		current := queue[0]
@@ -71,16 +83,7 @@ func (r *SingleRunner) Run(seedURL string, maxDepth *int) (RunResult, error) {
 		}
 		r.debugf("found candidates url=%s count=%d", current.URL, len(candidates))
 
-		links, toEnqueue := filterCandidates(
-			r.rules,
-			seedParsed,
-			current.URL,
-			current.Depth,
-			candidates,
-			maxDepth,
-			func(child string) bool { return visited[child] },
-			r.debugf,
-		)
+		links, toEnqueue := filterCandidates(fcfg, current.URL, current.Depth, candidates)
 		page.Links = links
 		for _, child := range toEnqueue {
 			queue = append(queue, queueItem{URL: child, Depth: current.Depth + 1})

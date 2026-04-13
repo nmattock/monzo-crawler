@@ -6,6 +6,11 @@ import (
 	"os"
 )
 
+// To capture debug output in tests, construct the runner and set its embedded
+// debugLogger fields directly (same package access):
+//
+//	r.debugLogger = debugLogger{debug: true, debugTo: &myBuf}
+
 // debugLogger can be embedded in a runner to provide uniform debug logging.
 // Runners that embed it automatically satisfy DebuggableRunner.SetDebug.
 type debugLogger struct {
@@ -19,15 +24,6 @@ func newDebugLogger() debugLogger {
 
 func (d *debugLogger) SetDebug(enabled bool) {
 	d.debug = enabled
-}
-
-// SetDebugOutput sets where debug logs are written. Defaults to stderr.
-func (d *debugLogger) SetDebugOutput(w io.Writer) {
-	if w == nil {
-		d.debugTo = os.Stderr
-		return
-	}
-	d.debugTo = w
 }
 
 func (d *debugLogger) debugf(format string, args ...any) {
