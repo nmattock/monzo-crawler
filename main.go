@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/url"
 	"os"
+	"os/signal"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"monzo-scraper/internal/cli"
@@ -41,11 +44,18 @@ func main() {
 		})
 	}
 
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	crawlStart := time.Now()
-	runResult, err := runner.Run(cfg.SeedURL, cfg.MaxDepth)
+	runResult, err := runner.Run(ctx, cfg.SeedURL, cfg.MaxDepth)
 	totalRunTime := time.Since(crawlStart)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		if ctx.Err() != nil {
+			fmt.Fprintln(os.Stderr, "\ncrawl interrupted")
+		} else {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		}
 		os.Exit(1)
 	}
 

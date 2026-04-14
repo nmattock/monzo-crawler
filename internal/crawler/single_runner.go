@@ -1,6 +1,9 @@
 package crawler
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // SingleRunner performs a sequential breadth-first crawl.
 type SingleRunner struct {
@@ -32,7 +35,8 @@ func NewSingleRunner(rules Rules, source ChildSource) (*SingleRunner, error) {
 
 // Run performs a breadth-first crawl from seedURL.
 // maxDepth is optional: nil means unlimited depth.
-func (r *SingleRunner) Run(seedURL string, maxDepth *int) (RunResult, error) {
+// Cancelling ctx stops the crawl at the next page boundary.
+func (r *SingleRunner) Run(ctx context.Context, seedURL string, maxDepth *int) (RunResult, error) {
 	seedParsed, normalizedSeed, err := parseSeed(r.rules, seedURL)
 	if err != nil {
 		return RunResult{}, err
@@ -57,6 +61,10 @@ func (r *SingleRunner) Run(seedURL string, maxDepth *int) (RunResult, error) {
 	}
 
 	for len(queue) > 0 {
+		if err := ctx.Err(); err != nil {
+			return RunResult{}, err
+		}
+
 		current := queue[0]
 		queue = queue[1:]
 		r.debugf("dequeue url=%s depth=%d queueRemaining=%d", current.URL, current.Depth, len(queue))
@@ -70,7 +78,7 @@ func (r *SingleRunner) Run(seedURL string, maxDepth *int) (RunResult, error) {
 		r.reportProgress(len(visitOrder))
 
 		startedAt := time.Now()
-		candidates, childrenErr := r.source.Children(current.URL)
+		candidates, childrenErr := r.source.Children(ctx, current.URL)
 		page := PageResult{
 			Depth:          current.Depth,
 			ScrapeDuration: time.Since(startedAt),

@@ -1,6 +1,7 @@
 package crawler
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -37,8 +38,8 @@ func NewHTTPChildSource(client *http.Client) *HTTPChildSource {
 }
 
 // Children fetches pageURL and returns absolute candidate links found in anchor href attributes.
-func (s *HTTPChildSource) Children(pageURL string) ([]string, error) {
-	req, err := http.NewRequest(http.MethodGet, pageURL, nil)
+func (s *HTTPChildSource) Children(ctx context.Context, pageURL string) ([]string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, pageURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}

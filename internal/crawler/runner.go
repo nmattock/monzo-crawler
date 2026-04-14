@@ -1,6 +1,7 @@
 package crawler
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"time"
@@ -8,13 +9,13 @@ import (
 
 // ChildSource provides candidate child links for a URL.
 type ChildSource interface {
-	Children(pageURL string) ([]string, error)
+	Children(ctx context.Context, pageURL string) ([]string, error)
 }
 
 // Runner defines the crawl execution contract.
 // Different implementations can provide different traversal strategies.
 type Runner interface {
-	Run(seedURL string, maxDepth *int) (RunResult, error)
+	Run(ctx context.Context, seedURL string, maxDepth *int) (RunResult, error)
 }
 
 // DebuggableRunner exposes optional debug controls for runner implementations.

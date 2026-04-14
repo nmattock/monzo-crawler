@@ -35,27 +35,29 @@ func (URLRules) Normalize(rawURL string) (string, error) {
 	return parsed.String(), nil
 }
 
-// IsDescendant returns true when candidate is in the same normalized origin
-// (scheme + host) as the already-normalized seed URL.
-func (r URLRules) IsDescendant(normalizedSeedURL *url.URL, candidateURL string) (bool, error) {
+// IsDescendant returns whether candidate shares the same normalized origin as
+// the seed, along with the normalized form of the candidate so callers avoid
+// a redundant Normalize call.
+func (r URLRules) IsDescendant(normalizedSeedURL *url.URL, candidateURL string) (bool, string, error) {
 	if normalizedSeedURL == nil {
-		return false, fmt.Errorf("%w: normalized seed URL cannot be nil", ErrInvalidSeedURL)
+		return false, "", fmt.Errorf("%w: normalized seed URL cannot be nil", ErrInvalidSeedURL)
 	}
 	if normalizedSeedURL.Scheme == "" || normalizedSeedURL.Host == "" {
-		return false, fmt.Errorf("%w: %q", ErrInvalidSeedURL, normalizedSeedURL.String())
+		return false, "", fmt.Errorf("%w: %q", ErrInvalidSeedURL, normalizedSeedURL.String())
 	}
 
 	normalizedCandidate, err := r.Normalize(candidateURL)
 	if err != nil {
-		return false, fmt.Errorf("%w: %v", ErrInvalidCandidateURL, err)
+		return false, "", fmt.Errorf("%w: %v", ErrInvalidCandidateURL, err)
 	}
 	candidateParsed, err := url.Parse(normalizedCandidate)
 	if err != nil {
-		return false, fmt.Errorf("%w: %v", ErrInvalidCandidateURL, err)
+		return false, "", fmt.Errorf("%w: %v", ErrInvalidCandidateURL, err)
 	}
 
-	return normalizedSeedURL.Scheme == candidateParsed.Scheme &&
-		normalizedSeedURL.Host == candidateParsed.Host, nil
+	same := normalizedSeedURL.Scheme == candidateParsed.Scheme &&
+		normalizedSeedURL.Host == candidateParsed.Host
+	return same, normalizedCandidate, nil
 }
 
 func normalizeHost(scheme, host string) string {

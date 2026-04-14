@@ -18,19 +18,14 @@ type filterConfig struct {
 //   - toEnqueue: the subset of links not yet seen and within the depth limit
 func filterCandidates(cfg filterConfig, pageURL string, depth int, candidates []string) (links []string, toEnqueue []string) {
 	for _, candidate := range candidates {
-		isDescendant, err := cfg.rules.IsDescendant(cfg.seedParsed, candidate)
+		// IsDescendant returns the normalized form so we avoid a second Normalize call.
+		isDescendant, normalizedChild, err := cfg.rules.IsDescendant(cfg.seedParsed, candidate)
 		if err != nil {
 			cfg.dbg("skip invalid candidate parent=%s candidate=%s err=%v", pageURL, candidate, err)
 			continue
 		}
 		if !isDescendant {
 			cfg.dbg("skip external candidate parent=%s candidate=%s", pageURL, candidate)
-			continue
-		}
-
-		normalizedChild, err := cfg.rules.Normalize(candidate)
-		if err != nil {
-			cfg.dbg("skip candidate normalize failure parent=%s candidate=%s err=%v", pageURL, candidate, err)
 			continue
 		}
 

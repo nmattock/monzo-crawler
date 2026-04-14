@@ -1,6 +1,7 @@
 package crawler
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"testing"
@@ -16,7 +17,7 @@ type trackingSource struct {
 	maxSeen  int
 }
 
-func (s *trackingSource) Children(pageURL string) ([]string, error) {
+func (s *trackingSource) Children(_ context.Context, pageURL string) ([]string, error) {
 	s.mu.Lock()
 	s.inFlight++
 	if s.inFlight > s.maxSeen {
@@ -58,7 +59,7 @@ func TestConcurrentRunner_Run_PreventsCycles(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	out, err := r.Run("https://crawlme.monzo.com", nil)
+	out, err := r.Run(context.Background(), "https://crawlme.monzo.com", nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -87,7 +88,7 @@ func TestConcurrentRunner_Run_RespectsConcurrencyLimit(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	_, err = r.Run("https://crawlme.monzo.com", intPtr(1))
+	_, err = r.Run(context.Background(), "https://crawlme.monzo.com", intPtr(1))
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

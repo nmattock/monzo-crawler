@@ -1,6 +1,7 @@
 package crawler
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"sort"
@@ -29,7 +30,7 @@ func TestHTTPChildSource_Children(t *testing.T) {
 	defer server.Close()
 
 	source := NewHTTPChildSource(server.Client())
-	got, err := source.Children(server.URL)
+	got, err := source.Children(context.Background(), server.URL)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -58,7 +59,7 @@ func TestHTTPChildSource_Non2xx(t *testing.T) {
 	defer server.Close()
 
 	source := NewHTTPChildSource(server.Client())
-	_, err := source.Children(server.URL)
+	_, err := source.Children(context.Background(), server.URL)
 	if err == nil {
 		t.Fatalf("expected error for non-2xx response")
 	}

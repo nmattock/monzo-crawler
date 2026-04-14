@@ -1,6 +1,7 @@
 package crawler
 
 import (
+	"context"
 	"errors"
 	"testing"
 )
@@ -10,7 +11,7 @@ type fakeSource struct {
 	errs     map[string]error
 }
 
-func (f fakeSource) Children(pageURL string) ([]string, error) {
+func (f fakeSource) Children(_ context.Context, pageURL string) ([]string, error) {
 	if err, ok := f.errs[pageURL]; ok {
 		return nil, err
 	}
@@ -30,7 +31,7 @@ func TestSingleRunner_StopsOnInvalidSeed(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	_, err = r.Run("not-a-url", nil)
+	_, err = r.Run(context.Background(), "not-a-url", nil)
 	if err == nil {
 		t.Fatalf("expected error for invalid seed URL")
 	}
@@ -53,7 +54,7 @@ func TestSingleRunner_SkipsInvalidCandidateAndExternalLinks(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	out, err := r.Run("https://crawlme.monzo.com", intPtr(1))
+	out, err := r.Run(context.Background(), "https://crawlme.monzo.com", intPtr(1))
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -82,7 +83,7 @@ func TestSingleRunner_UsesVisitedToPreventCycles(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	out, err := r.Run("https://crawlme.monzo.com", nil)
+	out, err := r.Run(context.Background(), "https://crawlme.monzo.com", nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -107,7 +108,7 @@ func TestSingleRunner_RespectsMaxDepth(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	out, err := r.Run("https://crawlme.monzo.com", intPtr(1))
+	out, err := r.Run(context.Background(), "https://crawlme.monzo.com", intPtr(1))
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -131,7 +132,7 @@ func TestSingleRunner_StoresPageErrorWhenChildFetchFails(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	out, err := r.Run("https://crawlme.monzo.com", nil)
+	out, err := r.Run(context.Background(), "https://crawlme.monzo.com", nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
@@ -152,7 +153,7 @@ func TestSingleRunner_SeedWithNoChildren(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	out, err := r.Run("https://crawlme.monzo.com", nil)
+	out, err := r.Run(context.Background(), "https://crawlme.monzo.com", nil)
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}

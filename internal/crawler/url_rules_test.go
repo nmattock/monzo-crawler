@@ -59,7 +59,7 @@ func TestIsDescendant_SameNormalizedOrigin(t *testing.T) {
 		t.Fatalf("expected parse to succeed, got %v", err)
 	}
 
-	ok, err := rules.IsDescendant(
+	ok, normalized, err := rules.IsDescendant(
 		seedURL,
 		"https://CRAWLME.MONZO.COM:443/pricing#top",
 	)
@@ -68,6 +68,9 @@ func TestIsDescendant_SameNormalizedOrigin(t *testing.T) {
 	}
 	if !ok {
 		t.Fatalf("expected candidate to be descendant")
+	}
+	if normalized != "https://crawlme.monzo.com/pricing" {
+		t.Fatalf("unexpected normalized candidate: %q", normalized)
 	}
 }
 
@@ -82,7 +85,7 @@ func TestIsDescendant_DifferentHost(t *testing.T) {
 		t.Fatalf("expected parse to succeed, got %v", err)
 	}
 
-	ok, err := rules.IsDescendant(
+	ok, _, err := rules.IsDescendant(
 		seedURL,
 		"https://api.crawlme.monzo.com/docs",
 	)
@@ -105,7 +108,7 @@ func TestIsDescendant_DifferentScheme(t *testing.T) {
 		t.Fatalf("expected parse to succeed, got %v", err)
 	}
 
-	ok, err := rules.IsDescendant(
+	ok, _, err := rules.IsDescendant(
 		seedURL,
 		"http://crawlme.monzo.com",
 	)
@@ -120,7 +123,7 @@ func TestIsDescendant_DifferentScheme(t *testing.T) {
 func TestIsDescendant_InvalidNormalizedSeed(t *testing.T) {
 	rules := URLRules{}
 
-	_, err := rules.IsDescendant(&url.URL{}, "https://crawlme.monzo.com/docs")
+	_, _, err := rules.IsDescendant(&url.URL{}, "https://crawlme.monzo.com/docs")
 	if err == nil {
 		t.Fatalf("expected error for invalid normalized seed URL")
 	}
@@ -132,7 +135,7 @@ func TestIsDescendant_InvalidNormalizedSeed(t *testing.T) {
 func TestIsDescendant_NilNormalizedSeed(t *testing.T) {
 	rules := URLRules{}
 
-	_, err := rules.IsDescendant(nil, "https://crawlme.monzo.com/docs")
+	_, _, err := rules.IsDescendant(nil, "https://crawlme.monzo.com/docs")
 	if err == nil {
 		t.Fatalf("expected error for nil normalized seed URL")
 	}
@@ -152,7 +155,7 @@ func TestIsDescendant_InvalidCandidate(t *testing.T) {
 		t.Fatalf("expected parse to succeed, got %v", err)
 	}
 
-	_, err = rules.IsDescendant(seedURL, "not-a-valid-url")
+	_, _, err = rules.IsDescendant(seedURL, "not-a-valid-url")
 	if err == nil {
 		t.Fatalf("expected error for invalid candidate URL")
 	}

@@ -1,6 +1,7 @@
 package crawler
 
 import (
+	"context"
 	"sync"
 	"time"
 )
@@ -101,8 +102,9 @@ func NewConcurrentRunner(rules Rules, source ChildSource, concurrency int) (*Con
 
 // Run crawls from seed URL using a worker pool. Workers are the only goroutines
 // that send on out; out is closed only after workerWG confirms all workers have
-// exited, so no send races with close.
-func (r *ConcurrentRunner) Run(seedURL string, maxDepth *int) (RunResult, error) {
+// exited, so no send races with close. Cancelling ctx stops the crawl: in-flight
+// HTTP requests are cancelled and no new jobs are dispatched.
+func (r *ConcurrentRunner) Run(ctx context.Context, seedURL string, maxDepth *int) (RunResult, error) {
 	seedParsed, normalizedSeed, err := parseSeed(r.rules, seedURL)
 	if err != nil {
 		return RunResult{}, err
@@ -138,7 +140,7 @@ func (r *ConcurrentRunner) Run(seedURL string, maxDepth *int) (RunResult, error)
 			defer workerWG.Done()
 			for job := range jobs {
 				startedAt := time.Now()
-				candidates, childrenErr := r.source.Children(job.URL)
+				candidates, childrenErr := r.source.Children(ctx, job.URL)
 				out <- scrapeResult{
 					URL:            job.URL,
 					Depth:          job.Depth,
@@ -156,7 +158,24 @@ func (r *ConcurrentRunner) Run(seedURL string, maxDepth *int) (RunResult, error)
 	pending := 1
 	in <- scrapeJob{URL: normalizedSeed, Depth: 0}
 
+	// closeIn ensures in is closed exactly once whether we finish normally
+	// (pending==0) or early due to context cancellation.
+	inOpen := true
+	closeIn := func() {
+		if inOpen {
+			inOpen = false
+			close(in)
+		}
+	}
+
 	for res := range out {
+		// On cancellation, stop dispatching new jobs; workers will fail their
+		// in-flight requests and drain out naturally.
+		if ctx.Err() != nil {
+			closeIn()
+			continue
+		}
+
 		r.debugf("result url=%s depth=%d", res.URL, res.Depth)
 
 		mu.Lock()
@@ -167,7 +186,7 @@ func (r *ConcurrentRunner) Run(seedURL string, maxDepth *int) (RunResult, error)
 			done := pending == 0
 			mu.Unlock()
 			if done {
-				close(in)
+				closeIn()
 			}
 			continue
 		}
@@ -185,7 +204,7 @@ func (r *ConcurrentRunner) Run(seedURL string, maxDepth *int) (RunResult, error)
 			done := pending == 0
 			mu.Unlock()
 			if done {
-				close(in)
+				closeIn()
 			}
 			continue
 		}
@@ -208,10 +227,13 @@ func (r *ConcurrentRunner) Run(seedURL string, maxDepth *int) (RunResult, error)
 			in <- scrapeJob{URL: child, Depth: res.Depth + 1}
 		}
 		if done {
-			close(in)
+			closeIn()
 		}
 	}
 
+	if err := ctx.Err(); err != nil {
+		return RunResult{}, err
+	}
 	return RunResult{
 		Visited:    visited,
 		Results:    results,
