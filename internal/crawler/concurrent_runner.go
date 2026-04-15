@@ -235,7 +235,6 @@ func (r *ConcurrentRunner) Run(ctx context.Context, seedURL string, maxDepth *in
 		return RunResult{}, err
 	}
 	return RunResult{
-		Visited:    visited,
 		Results:    results,
 		VisitOrder: visitOrder,
 	}, nil

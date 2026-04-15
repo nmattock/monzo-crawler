@@ -64,3 +64,21 @@ func TestHTTPChildSource_Non2xx(t *testing.T) {
 		t.Fatalf("expected error for non-2xx response")
 	}
 }
+
+func TestHTTPChildSource_NonHTMLContentType(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/pdf")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("%PDF-1.7 fake"))
+	}))
+	defer server.Close()
+
+	source := NewHTTPChildSource(server.Client())
+	got, err := source.Children(context.Background(), server.URL)
+	if err != nil {
+		t.Fatalf("expected no error for non-html content, got %v", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("expected no links for non-html content, got %v", got)
+	}
+}

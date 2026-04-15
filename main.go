@@ -16,6 +16,8 @@ import (
 	"monzo-scraper/internal/crawler"
 )
 
+const PROGRESS_INTERVAL = 500
+
 func main() {
 	cfg, err := cli.ParseArgs(os.Args[1:])
 	if err != nil {
@@ -33,16 +35,13 @@ func main() {
 		fmt.Fprintf(os.Stderr, "error: initialize crawler: %v\n", err)
 		os.Exit(1)
 	}
-	if debugRunner, ok := runner.(crawler.DebuggableRunner); ok {
-		debugRunner.SetDebug(cfg.Debug)
-	}
-	if pr, ok := runner.(crawler.ProgressableRunner); ok {
-		pr.SetProgress(func(visited int) {
-			if visited%500 == 0 {
-				fmt.Fprintf(os.Stderr, "progress: %d pages crawled at %s\n", visited, time.Now().Format("15:04:05"))
-			}
-		})
-	}
+	runner.SetDebug(cfg.Debug)
+	runner.SetProgress(func(visited int) {
+
+		if visited%PROGRESS_INTERVAL == 0 {
+			fmt.Fprintf(os.Stderr, "progress: %d pages crawled at %s\n", visited, time.Now().Format("15:04:05"))
+		}
+	})
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

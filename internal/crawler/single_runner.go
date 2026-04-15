@@ -101,7 +101,6 @@ func (r *SingleRunner) Run(ctx context.Context, seedURL string, maxDepth *int) (
 	}
 
 	return RunResult{
-		Visited:    visited,
 		Results:    results,
 		VisitOrder: visitOrder,
 	}, nil

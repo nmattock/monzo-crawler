@@ -12,7 +12,7 @@ import (
 //	r.debugLogger = debugLogger{debug: true, debugTo: &myBuf}
 
 // debugLogger can be embedded in a runner to provide uniform debug logging.
-// Runners that embed it automatically satisfy DebuggableRunner.SetDebug.
+// Runners that embed it automatically satisfy Runner.SetDebug.
 type debugLogger struct {
 	debug   bool
 	debugTo io.Writer

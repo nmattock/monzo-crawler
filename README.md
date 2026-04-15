@@ -133,6 +133,8 @@ Limitations of this approach:
 - It only sees links present in the raw HTML response.
 - It does not execute JavaScript, so client-rendered links are not discovered.
 - It does not perform browser interactions (clicks, form submission, infinite scroll, auth flows).
+- It does not currently enforce rate limiting/backoff, so high concurrency can put heavy load on target sites.
+- It does not currently read or enforce `robots.txt` rules.
 
 ## Architecture
 
@@ -143,7 +145,9 @@ graph TD
     NR -->|single| SR["SingleRunner"]
 
     subgraph ci["ConcurrentRunner — extra internals"]
-        JQ["jobQueue\n(mutex + sync.Cond)"] --> D["dispatcher\ngoroutine"] --> W["1000 workers"] --> RC["results channel"]
+        IN["in channel\n(result loop pushes jobs)"] --> FW["forwarder goroutine\n[]scrapeJob buffer"]
+        FW --> J["jobs channel\n(unbuffered handoff)"] --> W["worker pool × 1000"]
+        W --> OUT["out channel\n(results)"]
     end
     CR -.- ci
 
@@ -162,7 +166,7 @@ graph TD
 
     Both --> PS["① parseSeed\n(validate + normalise seed)"]
     PS --> FC["② filterCandidates\n(domain check · dedup · depth guard)"]
-    FC --> RR["RunResult\n(Visited, Results, VisitOrder)"]
+    FC --> RR["RunResult\n(Results, VisitOrder)"]
 
     RR --> SO["stdout\n(listing or --summary)"]
     RR -->|"--write-to-file"| FI[".txt file\nsummary + full listing"]

@@ -54,6 +54,10 @@ func (s *HTTPChildSource) Children(ctx context.Context, pageURL string) ([]strin
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("fetch page: unexpected status %d", resp.StatusCode)
 	}
+	contentType := strings.ToLower(resp.Header.Get("Content-Type"))
+	if contentType != "" && !strings.Contains(contentType, "html") {
+		return []string{}, nil
+	}
 
 	baseURL, err := url.Parse(pageURL)
 	if err != nil {

@@ -16,18 +16,7 @@ type ChildSource interface {
 // Different implementations can provide different traversal strategies.
 type Runner interface {
 	Run(ctx context.Context, seedURL string, maxDepth *int) (RunResult, error)
-}
-
-// DebuggableRunner exposes optional debug controls for runner implementations.
-type DebuggableRunner interface {
-	Runner
 	SetDebug(enabled bool)
-}
-
-// ProgressableRunner exposes an optional progress hook for runner implementations.
-// fn is called with the running count of pages visited each time a new page is recorded.
-type ProgressableRunner interface {
-	Runner
 	SetProgress(fn func(visited int))
 }
 
@@ -41,7 +30,6 @@ type PageResult struct {
 
 // RunResult stores the aggregated crawl state.
 type RunResult struct {
-	Visited    map[string]bool
 	Results    map[string]PageResult
 	VisitOrder []string
 }

@@ -63,8 +63,8 @@ func TestConcurrentRunner_Run_PreventsCycles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got %v", err)
 	}
-	if len(out.Visited) != 2 {
-		t.Fatalf("expected 2 visited pages, got %d", len(out.Visited))
+	if len(out.VisitOrder) != 2 {
+		t.Fatalf("expected 2 visited pages, got %d", len(out.VisitOrder))
 	}
 }
 

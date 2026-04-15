@@ -88,8 +88,8 @@ func TestSingleRunner_UsesVisitedToPreventCycles(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if len(out.Visited) != 2 {
-		t.Fatalf("expected 2 visited pages, got %d", len(out.Visited))
+	if len(out.VisitOrder) != 2 {
+		t.Fatalf("expected 2 visited pages, got %d", len(out.VisitOrder))
 	}
 }
 
@@ -113,10 +113,13 @@ func TestSingleRunner_RespectsMaxDepth(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if out.Visited["https://crawlme.monzo.com/a/deeper"] {
+	if _, ok := out.Results["https://crawlme.monzo.com/a/deeper"]; ok {
 		t.Fatalf("expected depth-2 page not to be visited with maxDepth=1")
 	}
-	if !out.Visited["https://crawlme.monzo.com"] || !out.Visited["https://crawlme.monzo.com/a"] {
+	if _, ok := out.Results["https://crawlme.monzo.com"]; !ok {
+		t.Fatalf("expected root page to be visited")
+	}
+	if _, ok := out.Results["https://crawlme.monzo.com/a"]; !ok {
 		t.Fatalf("expected root and depth-1 page to be visited")
 	}
 }
@@ -158,11 +161,11 @@ func TestSingleRunner_SeedWithNoChildren(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 
-	if len(out.Visited) != 1 {
-		t.Fatalf("expected only seed to be visited, got %d", len(out.Visited))
+	if len(out.VisitOrder) != 1 {
+		t.Fatalf("expected only seed to be visited, got %d", len(out.VisitOrder))
 	}
-	if !out.Visited["https://crawlme.monzo.com"] {
-		t.Fatalf("expected seed to be marked visited")
+	if out.VisitOrder[0] != "https://crawlme.monzo.com" {
+		t.Fatalf("expected seed to be the only visited page, got %q", out.VisitOrder[0])
 	}
 
 	root, ok := out.Results["https://crawlme.monzo.com"]
